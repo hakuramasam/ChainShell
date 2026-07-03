@@ -23,6 +23,7 @@ import {
   getSessionLogs,
   getRecentLogs,
 } from "./security/logger.js";
+import { verifySiweSignature, verifySessionToken, createSessionToken } from "./auth.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -128,6 +129,46 @@ const httpServer = createServer(async (req, res) => {
       active: getActiveSessionCount(),
       max: MAX_SESSIONS,
     }));
+    return;
+  }
+
+  // ── SIWE Auth: verify signature and issue JWT ──
+  if (url.pathname === "/api/auth/siwe" && req.method === "POST") {
+    try {
+      const body = await parseJsonBody<{ message: string; signature: string }>(req);
+      const result = await verifySiweSignature(body);
+      if (result.ok) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ token: result.token, address: result.address }));
+      } else {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: result.error }));
+      }
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid request body" }));
+    }
+    return;
+  }
+
+  // ── Auth: refresh token ──
+  if (url.pathname === "/api/auth/refresh" && req.method === "POST") {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing token" }));
+      return;
+    }
+    const payload = verifySessionToken(token);
+    if (!payload) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid or expired token" }));
+      return;
+    }
+    const newToken = createSessionToken(payload.address);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ token: newToken, address: payload.address }));
     return;
   }
 

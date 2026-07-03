@@ -111,7 +111,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     setIsSigningIn(true);
     try {
-      // Fetch the current chain ID from the provider
       const eth = (window as unknown as {
         ethereum?: {
           request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -123,27 +122,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("No wallet provider available. Please use a browser wallet or reconnect.");
       }
 
-      // Use the correct provider (MetaMask, Coinbase, etc.)
       const provider = eth.providers?.length
         ? eth.providers[0]
         : eth;
 
-      // Fetch chain ID dynamically
       const chainIdHex = (await provider.request({ method: "eth_chainId" })) as string;
       const chainId = parseInt(chainIdHex, 16) || 1;
 
       const nonce = randomNonce();
       const message = generateSiweMessage(connectedAddress, nonce, chainId);
 
-      // SIWE: personal_sign — required for ALL wallets (including WalletConnect)
-      await provider.request({
+      // Sign the SIWE message
+      const signature = (await provider.request({
         method: "personal_sign",
         params: [message, connectedAddress],
+      })) as string;
+
+      // Verify signature with server
+      const res = await fetch("/api/auth/siwe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, signature }),
       });
 
-      // Account created + API key generated
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "Signature verification failed");
+      }
+
+      const { token, address } = (await res.json()) as { token: string; address: string };
+
+      // Store session token
+      localStorage.setItem("chainshell_session", token);
+
       const newUser: User = {
-        address: connectedAddress,
+        address: address || connectedAddress,
         createdAt: new Date().toISOString(),
         apiKey: generateApiKey(),
       };

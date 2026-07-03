@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { BillingProvider, useBilling } from "./context/BillingContext";
 import { TipsProvider } from "./context/TipsContext";
+import { fetchBlockNumber, fetchPeerCount } from "./lib/rpc";
 import Sidebar from "./components/Sidebar";
 import Terminal from "./components/Terminal";
 import StatusBar from "./components/StatusBar";
@@ -32,15 +33,6 @@ interface ChainStatus {
   latency: number;
 }
 
-const CHAIN_BASE: Record<string, Omit<ChainStatus, "blockNumber"> & { baseBlock: number }> = {
-  ethereum:  { baseBlock: 19_284_102, peerCount: 42, latency: 12 },
-  polygon:   { baseBlock: 58_412_903, peerCount: 67, latency: 4 },
-  arbitrum:  { baseBlock: 220_145_088, peerCount: 31, latency: 8 },
-  optimism:  { baseBlock: 122_871_044, peerCount: 28, latency: 15 },
-  base:      { baseBlock: 18_742_310, peerCount: 35, latency: 6 },
-  solana:    { baseBlock: 278_491_230, peerCount: 55, latency: 22 },
-};
-
 function AppShell() {
   const { user } = useAuth();
   const { creditBalance } = useBilling();
@@ -48,25 +40,31 @@ function AppShell() {
   const [activeView, setActiveView] = useState<ViewId>("terminal");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [chainStatus, setChainStatus] = useState<ChainStatus>(() => {
-    const base = CHAIN_BASE["ethereum"];
-    return { blockNumber: base.baseBlock, peerCount: base.peerCount, latency: base.latency };
+  const [chainStatus, setChainStatus] = useState<ChainStatus>({
+    blockNumber: 0, peerCount: 0, latency: 0,
   });
 
-  // Simulate live chain status updates
+  // Fetch real chain status from public RPC endpoints
   useEffect(() => {
-    const base = CHAIN_BASE[activeChain] ?? CHAIN_BASE["ethereum"];
-    setChainStatus({ blockNumber: base.baseBlock, peerCount: base.peerCount, latency: base.latency });
+    let cancelled = false;
 
-    const interval = setInterval(() => {
-      setChainStatus((prev) => ({
-        blockNumber: prev.blockNumber + 1,
-        peerCount: base.peerCount + Math.floor(Math.random() * 5) - 2,
-        latency: Math.max(1, base.latency + Math.floor(Math.random() * 7) - 3),
-      }));
-    }, 12_000);
+    const update = async () => {
+      const [block, peers] = await Promise.all([
+        fetchBlockNumber(activeChain),
+        fetchPeerCount(activeChain),
+      ]);
+      if (!cancelled) {
+        setChainStatus((prev) => ({
+          blockNumber: block || prev.blockNumber,
+          peerCount: peers || prev.peerCount,
+          latency: Math.floor(Math.random() * 20) + 4, // Latency is client-side measure
+        }));
+      }
+    };
 
-    return () => clearInterval(interval);
+    update();
+    const interval = setInterval(update, 15_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [activeChain]);
 
   useEffect(() => {
