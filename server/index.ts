@@ -70,7 +70,13 @@ const httpServer = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
 
   // CORS headers for all API responses
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
+    .split(",")
+    .map((s) => s.trim());
+  const origin = req.headers.origin ?? "";
+  if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 

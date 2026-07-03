@@ -26,6 +26,21 @@ function ViewFallback() {
   );
 }
 
+interface ChainStatus {
+  blockNumber: number;
+  peerCount: number;
+  latency: number;
+}
+
+const CHAIN_BASE: Record<string, Omit<ChainStatus, "blockNumber"> & { baseBlock: number }> = {
+  ethereum:  { baseBlock: 19_284_102, peerCount: 42, latency: 12 },
+  polygon:   { baseBlock: 58_412_903, peerCount: 67, latency: 4 },
+  arbitrum:  { baseBlock: 220_145_088, peerCount: 31, latency: 8 },
+  optimism:  { baseBlock: 122_871_044, peerCount: 28, latency: 15 },
+  base:      { baseBlock: 18_742_310, peerCount: 35, latency: 6 },
+  solana:    { baseBlock: 278_491_230, peerCount: 55, latency: 22 },
+};
+
 function AppShell() {
   const { user } = useAuth();
   const { creditBalance } = useBilling();
@@ -33,6 +48,26 @@ function AppShell() {
   const [activeView, setActiveView] = useState<ViewId>("terminal");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [chainStatus, setChainStatus] = useState<ChainStatus>(() => {
+    const base = CHAIN_BASE["ethereum"];
+    return { blockNumber: base.baseBlock, peerCount: base.peerCount, latency: base.latency };
+  });
+
+  // Simulate live chain status updates
+  useEffect(() => {
+    const base = CHAIN_BASE[activeChain] ?? CHAIN_BASE["ethereum"];
+    setChainStatus({ blockNumber: base.baseBlock, peerCount: base.peerCount, latency: base.latency });
+
+    const interval = setInterval(() => {
+      setChainStatus((prev) => ({
+        blockNumber: prev.blockNumber + 1,
+        peerCount: base.peerCount + Math.floor(Math.random() * 5) - 2,
+        latency: Math.max(1, base.latency + Math.floor(Math.random() * 7) - 3),
+      }));
+    }, 12_000);
+
+    return () => clearInterval(interval);
+  }, [activeChain]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -118,9 +153,9 @@ function AppShell() {
         </div>
         <StatusBar
           activeChain={activeChain}
-          blockNumber={19_284_102}
-          peerCount={42}
-          latency={12}
+          blockNumber={chainStatus.blockNumber}
+          peerCount={chainStatus.peerCount}
+          latency={chainStatus.latency}
         />
       </div>
     </div>

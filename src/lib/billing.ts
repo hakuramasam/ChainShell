@@ -128,12 +128,36 @@ export interface BillingTransaction {
   status: "confirmed" | "pending" | "failed";
 }
 
-let cachedTxs: BillingTransaction[] = [];
+const TX_STORAGE_KEY = "chainshell_billing_txs";
+
+let cachedTxs: BillingTransaction[] | null = null;
+
+function loadTxs(): BillingTransaction[] {
+  if (cachedTxs) return cachedTxs;
+  try {
+    const stored = localStorage.getItem(TX_STORAGE_KEY);
+    cachedTxs = stored ? JSON.parse(stored) : [];
+  } catch {
+    cachedTxs = [];
+  }
+  return cachedTxs!;
+}
+
+function persistTxs(txs: BillingTransaction[]): void {
+  cachedTxs = txs;
+  try {
+    localStorage.setItem(TX_STORAGE_KEY, JSON.stringify(txs.slice(0, 200)));
+  } catch {
+    // localStorage full — silently ignore
+  }
+}
 
 export function getBillingTransactions(): BillingTransaction[] {
-  return cachedTxs;
+  return loadTxs();
 }
 
 export function addBillingTransaction(tx: BillingTransaction): void {
-  cachedTxs.unshift(tx);
+  const txs = loadTxs();
+  txs.unshift(tx);
+  persistTxs(txs);
 }
