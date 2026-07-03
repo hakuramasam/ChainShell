@@ -1,0 +1,23 @@
+{
+  "name": "chainshell-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "start": "tsx index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dockerode": "^4.0.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.33",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.3"
+  }
+}
